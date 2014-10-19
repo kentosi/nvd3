@@ -143,7 +143,7 @@ nv.interactiveGuideline = function() {
 	, margin = {left: 0, top: 0}
 	, xScale = d3.scale.linear()
 	, yScale = d3.scale.linear()
-	, dispatch = d3.dispatch('elementMousemove', 'elementMouseout','elementDblclick')
+	, dispatch = d3.dispatch('elementMousemove', 'elementMouseout','elementDblclick','elementClick')
 	, showGuideLine = true
 	, svgContainer = null  
     //Must pass in the bounding chart's <svg> container.
@@ -250,12 +250,21 @@ nv.interactiveGuideline = function() {
                             pointXValue: pointXValue
                         });
                       }
+
+                      if (d3.event.type === "click") {
+                        dispatch.elementClick({
+                            mouseX: mouseX,
+                            mouseY: mouseY,
+                            pointXValue: pointXValue
+                        });
+                      }
                 }
 
 				svgContainer
 				      .on("mousemove",mouseHandler, true)
 				      .on("mouseout" ,mouseHandler,true)
-                      .on("dblclick" ,mouseHandler)
+              .on("dblclick" ,mouseHandler)
+              .on("click" ,mouseHandler)
 				      ;
 
 				 //Draws a vertical guideline at the given X postion.
@@ -5426,7 +5435,7 @@ nv.models.lineChart = function() {
     , state = {}
     , defaultState = null
     , noData = 'No Data Available.'
-    , dispatch = d3.dispatch('tooltipShow', 'tooltipHide', 'stateChange', 'changeState')
+    , dispatch = d3.dispatch('tooltipShow', 'tooltipHide', 'clickWithTooltip', 'stateChange', 'changeState')
     , transitionDuration = 250
     ;
 
@@ -5638,6 +5647,27 @@ nv.models.lineChart = function() {
           chart.update();
       });
 
+      interactiveLayer.dispatch.on('elementClick', function(e) {
+        var singlePoint, pointIndex, pointXLocation;
+        data
+        .filter(function(series, i) {
+          series.seriesIndex = i;
+          return !series.disabled;
+        })
+        .forEach(function(series,i) {
+            pointIndex = nv.interactiveBisect(series.values, e.pointXValue, chart.x());
+            lines.highlightPoint(i, pointIndex, true);
+            var point = series.values[pointIndex];
+            if (typeof point === 'undefined') return;
+            if (typeof singlePoint === 'undefined') singlePoint = point;
+            if (typeof pointXLocation === 'undefined') pointXLocation = chart.xScale()(chart.x()(point,pointIndex));
+        });
+
+        var xValue = xAxis.tickFormat()(chart.x()(singlePoint,pointIndex));
+
+        dispatch.clickWithTooltip(e, xValue);
+      });
+
       interactiveLayer.dispatch.on('elementMousemove', function(e) {
           lines.clearHighlights();
           var singlePoint, pointIndex, pointXLocation, allData = [];
@@ -5685,7 +5715,6 @@ nv.models.lineChart = function() {
                   )();
 
           interactiveLayer.renderGuideLine(pointXLocation);
-
       });
 
       interactiveLayer.dispatch.on("elementMouseout",function(e) {
@@ -5696,7 +5725,6 @@ nv.models.lineChart = function() {
       dispatch.on('tooltipShow', function(e) {
         if (tooltips) showTooltip(e, that.parentNode);
       });
-
 
       dispatch.on('changeState', function(e) {
 
